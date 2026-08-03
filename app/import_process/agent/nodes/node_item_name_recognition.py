@@ -249,13 +249,13 @@ def step_5_generate_vectors(item_name: str) -> Tuple[Any, Any]:
 
     try:
         # 调用向量生成工具：传入列表支持批量生成，单条数据仍用列表保证格式统一
-        vector_result = generate_embeddings([item_name])
+        vector_result = generate_embeddings([item_name]) # 接受一个列表，我们只有一项 item_name
 
         # 向量生成结果非空，才进行后续解析
         if vector_result and "dense" in vector_result and "sparse" in vector_result:
-            # 稠密向量解析：取批量结果第一个，为Python列表（Milvus存储要求）
+            # 稠密向量解析：取批量结果第一个（因为只传入了一个参数就是 item_name），为Python列表（Milvus存储要求）
             dense_vector = vector_result["dense"][0]
-            # 稀疏向量解析：取批量结果第一个，CSR矩阵解析为字典格式
+            # 稀疏向量解析：取批量结果第一个（因为只传入了一个参数就是 item_name），CSR矩阵解析为字典格式
             sparse_vector = vector_result["sparse"][0]
             logger.info("步骤5：BGE-M3稠密+稀疏向量生成成功")
         else:
@@ -338,7 +338,7 @@ def step_6_save_to_milvus(state: ImportGraphState, file_title: str, item_name: s
             # 添加稀疏向量字段：SPARSE_FLOAT_VECTOR，变长
             schema.add_field(
                 field_name="sparse_vector",
-                datatype=DataType.SPARSE_FLOAT_VECTOR
+                datatype=DataType.SPARSE_FLOAT_VECTOR # 稀疏向量不设置维度，因为长度不固定
             )
 
             # 构建索引参数：为向量字段创建索引，提升检索性能
@@ -347,12 +347,21 @@ def step_6_save_to_milvus(state: ImportGraphState, file_title: str, item_name: s
             index_params.add_index(
                 field_name="dense_vector",
                 index_name="dense_vector_index",
+                # 一般我们常用的有两类：一类是 IVF 系列，另一类是 HNSW 系列：
+                # IVF 是把所有向量聚类，找出若干个中心点，每个向量丢到离自己最近的中心点的桶中。查询的时候，先查询中心点所在的桶，进而在桶中查询具体的向量。
+                # IVF 的优点是结构简单、占有内存小、创建索引速度快，适合海量数据处理；缺点是针对桶内查询精度稍差。应用于数据量大（省内存），对延迟和精度要求不太高。
+                # HNSW 是通过构建多层图，将图中的向量进行连接。查询时从上至下依次查询，上层数据比较粗，下层数据比较细。它的时间复杂度为 log n。
+                # HNSW 适合精度更高、返回速度更快的场景。对于高维度的向量（一般在 768 维以上），数据量大，因此在服务器上占用的内存也会更高。
                 # HNSW (Hierarchical Navigable Small World) 是目前性能最好、最常用的基于图的索引，检索速度极快，精度极高。
                 index_type="HNSW",
                 # 使用 COSINE 作为稠密向量相似度计算方式
                 metric_type="COSINE",
                 # M: 图中每个节点的最大连接数(常用16-64)
                 # efConstruction: 构建索引时的搜索范围(越大建索引越慢，但精度越高，常用100-200)
+                # 这里一般对应一些常用值：
+                # 1. 数据量为 1 万：M 为 16，EF construction 为 200。
+                # 2. 数据量为 5 万：M 为 32，EF construction 为 300。
+                # 3. 数据量为 10 万：M 为 64，EF construction 为 400。
                 params={"M": 16, "efConstruction": 200}
             )
 
@@ -364,7 +373,7 @@ def step_6_save_to_milvus(state: ImportGraphState, file_title: str, item_name: s
                 index_type="SPARSE_INVERTED_INDEX",
                 # IP（内积，Inner Product）如果向量是 “文本语义向量 + 关键词权重”，长度代表文本与主题的关联强度，此时用 IP 能同时体现 “语义匹配度” 和 “关联强度”。
                 metric_type="IP",
-                #DAAT_MAXSCORE 是稀疏检索的高效算法，quantization="none" 保证稀疏向量权重无损失；normalize=是否归一化。
+                # DAAT_MAXSCORE 是稀疏检索的高效算法（只计算可能得高分的向量，跳过大量的0），quantization="none" 保证稀疏向量权重无损失；normalize 是否归一化。
                 params = {"inverted_index_algo": "DAAT_MAXSCORE", "normalize": True, "quantization": "none"}
             )
 

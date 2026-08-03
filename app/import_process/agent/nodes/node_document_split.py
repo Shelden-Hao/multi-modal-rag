@@ -161,6 +161,7 @@ def _split_long_section(section: Dict[str, Any], max_length: int = DEFAULT_MAX_C
 
     # 初始化LangChain递归分割器（核心工具：按优先级分隔符切分，保留语义）
     # separators：分割符优先级（从粗到细），优先按大语义单元切分，最后才硬拆
+    # 相当于一个内置的循环：如果按照某个符号切割完成之后，chunk仍然大于 chunk size，那么就继续用下一个优先级的分割符继续切割，直到分割符用完为止。
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=available_len,  # 正文部分最大长度（已扣除标题）
         chunk_overlap=0,           # 无重叠：按标题切分后语义完整，无需重叠

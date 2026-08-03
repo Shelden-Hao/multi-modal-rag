@@ -28,8 +28,8 @@ def get_bge_m3_ef():
         extra={
             "model_name": model_name,
             "device": device,
-            "use_fp16": use_fp16,
-            "normalize_embeddings": True
+            "use_fp16": use_fp16, # 是否开启16精度加速
+            "normalize_embeddings": True # 模型原生对稠密+稀疏向量做L2归一化：归一化后重点看语义而轻长度
         }
     )
 
