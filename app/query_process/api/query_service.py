@@ -16,7 +16,7 @@ from app.query_process.agent.main_graph import query_app
 
 
 # 定义fastapi对象
-app = FastAPI(title="query service",description="掌柜智库查询服务！")
+app = FastAPI(title="query service",description="Multi-Modal RAG查询服务！")
 # 跨域问题解决
 app.add_middleware(
     CORSMiddleware,
